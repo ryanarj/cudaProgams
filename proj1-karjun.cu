@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <math.h>
 #include <sys/time.h>
-#include <cuda_runtime.h>
 
 #define BOX_SIZE	23000 /* size of the data box on one dimension            */
 
@@ -24,6 +23,10 @@ int num_buckets;		/* total number of buckets in the histogram */
 double PDH_res;			/* value of w                             */
 atom *atom_list;		/* list of all data points                */
 
+struct timezone Idunno;	
+struct timeval startTime, endTime;
+
+
 __device__ double
 p2p_distance(atom *a, int ind1, int ind2) {
 	double x1 = a[ind1].x_pos;
@@ -36,6 +39,20 @@ p2p_distance(atom *a, int ind1, int ind2) {
 	double z2 = a[ind2].z_pos;
 		
 	return sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2) + (z1 - z2)*(z1 - z2));
+}
+
+
+double report_running_time() {
+	long sec_diff, usec_diff;
+	gettimeofday(&endTime, &Idunno);
+	sec_diff = endTime.tv_sec - startTime.tv_sec;
+	usec_diff= endTime.tv_usec-startTime.tv_usec;
+	if(usec_diff < 0) {
+		sec_diff --;
+		usec_diff += 1000000;
+	}
+	printf("Running time for CPU version: %ld.%06ld\n", sec_diff, usec_diff);
+	return (double)(sec_diff*1.0 + usec_diff/1000000.0);
 }
 
 __global__ void 
@@ -99,6 +116,9 @@ int main(int argc, char const *argv[])
 	PDH_baseline <<<ceil(PDH_acnt/64), 64>>> (d_histogram, d_atom_list, PDH_res, PDH_acnt);
 	cudaMemcpy(histogram, d_histogram, histogramSize, cudaMemcpyDeviceToHost);
 
+	/* check the total running time */ 
+	report_running_time();
+
 	// Print the histogram
 	output_histogram(histogram);
 
@@ -107,7 +127,6 @@ int main(int argc, char const *argv[])
 	cudaFree(d_atom_list);
 	free(histogram);
 	free(atom_list);
-	cudaDeviceReset();
 
 	return 0;
 }
