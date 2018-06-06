@@ -28,15 +28,15 @@ struct timeval startTime, endTime;
 
 
 __device__ double
-p2p_distance(atom *a, int ind1, int ind2) {
-	double x1 = a[ind1].x_pos;
-	double x2 = a[ind2].x_pos;
+p2p_distance(atom *atom, int ind1, int ind2) {
+	double x1 = atom[ind1].x_pos;
+	double x2 = atom[ind2].x_pos;
 
-	double y1 = a[ind1].y_pos;
-	double y2 = a[ind2].y_pos;
+	double y1 = atom[ind1].y_pos;
+	double y2 = atom[ind2].y_pos;
 
-	double z1 = a[ind1].z_pos;
-	double z2 = a[ind2].z_pos;
+	double z1 = atom[ind1].z_pos;
+	double z2 = atom[ind2].z_pos;
 		
 	return sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2) + (z1 - z2)*(z1 - z2));
 }
@@ -56,17 +56,20 @@ double report_running_time() {
 }
 
 __global__ void 
-PDH_baseline(bucket *histo, atom *atomList, double w, int size) {
-	int i, j, pos;
-	double dist;
-
+PDH_baseline(bucket *histogram, atom *atom, double weight, int size) {
+	int i, j;
+	int position;
+	double distance;
+	
+	// Add the thread Index with the block index and the dim x
 	i = blockIdx.x * blockDim.x + threadIdx.x;
 	j = i + 1;
-
+	
+	// Get the distance and then atomic add the position of the histogram with 1
 	for (int a = j; a < size; a++) {
-		dist = p2p_distance(atomList, i, a);
-		pos = (int) (dist / w);
-		atomicAdd( &histo[pos].d_cnt, 1);
+		distance = p2p_distance(atom, i, a);
+		position = (int) (distance / weight);
+		atomicAdd( &histogram[position].d_cnt, 1);
 	}
 }
 
@@ -95,6 +98,8 @@ int main(int argc, char const *argv[])
 	size_t atomSize = sizeof(atom)*PDH_acnt;
 	histogram = (bucket *)malloc(histogramSize);
 	atom_list = (atom *)malloc(atomSize);
+	bucket *d_histogram = NULL;
+	atom *d_atom_list = NULL;
 
 	srand(1);
 	/* generate data following a uniform distribution */
@@ -103,14 +108,15 @@ int main(int argc, char const *argv[])
 		atom_list[i].y_pos = ((double)(rand()) / RAND_MAX) * BOX_SIZE;
 		atom_list[i].z_pos = ((double)(rand()) / RAND_MAX) * BOX_SIZE;
 	}
-	bucket *d_histogram = NULL;
-	atom *d_atom_list = NULL;
 
 	// Allocate memory to GPU arrays and then copy the data from the CPU arrays
 	cudaMalloc((void**) &d_histogram, histogramSize);
 	cudaMalloc((void**) &d_atom_list, atomSize);
 	cudaMemcpy(d_histogram, histogram, histogramSize, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_atom_list, atom_list, atomSize, cudaMemcpyHostToDevice);
+
+	/* start counting time */
+	gettimeofday(&startTime, &Idunno);
 
 	// Launch the kernal and perform calcualtions with the GPU PDH_baseline
 	PDH_baseline <<<ceil(PDH_acnt/32), 32>>> (d_histogram, d_atom_list, PDH_res, PDH_acnt);
@@ -130,6 +136,3 @@ int main(int argc, char const *argv[])
 
 	return 0;
 }
-
-
-
