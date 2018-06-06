@@ -26,15 +26,25 @@ atom *atom_list;		/* list of all data points                */
 struct timezone Idunno;	
 struct timeval startTime, endTime;
 
+double p2p_distanceOriginal(int ind1, int ind2) {
+	
+	double x1 = atom_list[ind1].x_pos;
+	double x2 = atom_list[ind2].x_pos;
+	double y1 = atom_list[ind1].y_pos;
+	double y2 = atom_list[ind2].y_pos;
+	double z1 = atom_list[ind1].z_pos;
+	double z2 = atom_list[ind2].z_pos;
+		
+	return sqrt((x1 - x2)*(x1-x2) + (y1 - y2)*(y1 - y2) + (z1 - z2)*(z1 - z2));
+}
+
 
 __device__ double
 p2p_distance(atom *atom, int ind1, int ind2) {
 	double x1 = atom[ind1].x_pos;
 	double x2 = atom[ind2].x_pos;
-
 	double y1 = atom[ind1].y_pos;
 	double y2 = atom[ind2].y_pos;
-
 	double z1 = atom[ind1].z_pos;
 	double z2 = atom[ind2].z_pos;
 		
@@ -55,6 +65,20 @@ double report_running_time() {
 	return (double)(sec_diff*1.0 + usec_diff/1000000.0);
 }
 
+int PDH_baselineOrginal() {
+	int i, j, h_pos;
+	double dist;
+	
+	for(i = 0; i < PDH_acnt; i++) {
+		for(j = i+1; j < PDH_acnt; j++) {
+			dist = p2p_distanceOriginal(i,j);
+			h_pos = (int) (dist / PDH_res);
+			histogram[h_pos].d_cnt++;
+		} 
+	}
+	return 0;
+}
+
 __global__ void 
 PDH_baseline(bucket *histogram, atom *atom, double weight, int size) {
 	int i, j;
@@ -73,7 +97,7 @@ PDH_baseline(bucket *histogram, atom *atom, double weight, int size) {
 	}
 }
 
-void output_histogram(){
+long long output_histogram(){
 	int i; 
 	long long total_cnt = 0;
 	for(i=0; i< num_buckets; i++) {
@@ -86,6 +110,7 @@ void output_histogram(){
 			printf("\n T:%lld \n", total_cnt);
 		else printf("| ");
 	}
+	return total_cnt;
 }
 
 
@@ -100,6 +125,8 @@ int main(int argc, char const *argv[])
 	atom_list = (atom *)malloc(atomSize);
 	bucket *d_histogram = NULL;
 	atom *d_atom_list = NULL;
+	double difference_time1, difference_time2; 
+	long long  difference_t1, difference_t2;
 
 	srand(1);
 	/* generate data following a uniform distribution */
@@ -108,6 +135,17 @@ int main(int argc, char const *argv[])
 		atom_list[i].y_pos = ((double)(rand()) / RAND_MAX) * BOX_SIZE;
 		atom_list[i].z_pos = ((double)(rand()) / RAND_MAX) * BOX_SIZE;
 	}
+	/* start counting time */
+	gettimeofday(&startTime, &Idunno);
+	
+	/* call CPU single thread version to compute the histogram */
+	PDH_baselineOrginal();
+	
+	/* check the total running time */ 
+	difference_time1 = report_running_time();
+	
+	/* print out the histogram */
+	difference_t1 = output_histogram();
 
 	// Allocate memory to GPU arrays and then copy the data from the CPU arrays
 	cudaMalloc((void**) &d_histogram, histogramSize);
@@ -123,10 +161,16 @@ int main(int argc, char const *argv[])
 	cudaMemcpy(histogram, d_histogram, histogramSize, cudaMemcpyDeviceToHost);
 
 	/* check the total running time */ 
-	report_running_time();
+	difference_time2 = report_running_time();
 
 	// Print the histogram
-	output_histogram();
+	difference_t2 = output_histogram();
+
+	printf("\nDifference Of the two histograms.\n");
+	printf("Running time for CPU version: %lf\n", difference_time1);
+	printf("Running time for GPU version: %lf\n", difference_time2);
+	printf("Total distance for CPU version: %lld\n", difference_t1);
+	printf("Total distance for GPU version: %lld\n", difference_t2);
 
 	// Free the GPU(device) and the CPU(host) arrays
 	cudaFree(d_histogram);
