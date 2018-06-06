@@ -65,6 +65,19 @@ double report_running_time() {
 	return (double)(sec_diff*1.0 + usec_diff/1000000.0);
 }
 
+double report_running_time_gpu() {
+	long sec_diff, usec_diff;
+	gettimeofday(&endTime, &Idunno);
+	sec_diff = endTime.tv_sec - startTime.tv_sec;
+	usec_diff= endTime.tv_usec-startTime.tv_usec;
+	if(usec_diff < 0) {
+		sec_diff --;
+		usec_diff += 1000000;
+	}
+	printf("Running time for GPU version: %ld.%06ld\n", sec_diff, usec_diff);
+	return (double)(sec_diff*1.0 + usec_diff/1000000.0);
+}
+
 int PDH_baselineOrginal() {
 	int i, j, h_pos;
 	double dist;
@@ -161,7 +174,7 @@ int main(int argc, char const *argv[])
 	cudaMemcpy(histogram, d_histogram, histogramSize, cudaMemcpyDeviceToHost);
 
 	/* check the total running time */ 
-	difference_time2 = report_running_time();
+	difference_time2 = report_running_time_gpu();
 
 	// Print the histogram
 	difference_t2 = output_histogram();
