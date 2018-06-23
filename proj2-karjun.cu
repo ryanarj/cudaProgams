@@ -127,9 +127,14 @@ long long output_histogram(){
 
 int main(int argc, char const *argv[])
 {
-	PDH_acnt = atoi(argv[1]);	// Number of atoms
-	PDH_res = atof(argv[2]);	// Input Distance: W
-	threads = atoi(argv[3]);    // Number of threads
+	if (argc > 2){
+		PDH_acnt = atoi(argv[1]);	// Number of atoms
+		PDH_res = atof(argv[2]);	// Input Distance: W
+		threads = atoi(argv[3]);    // Number of threads
+	} else {
+		printf("Invalid amount of arguments!!\n Needs a number of atoms, the distance amount and number of threads.")
+		return 0;
+	}
 	num_buckets = (int)(BOX_SIZE * 1.732 / PDH_res) + 1;
 	size_t histogramSize = sizeof(bucket)*num_buckets;
 	size_t atomSize = sizeof(atom)*PDH_acnt;
