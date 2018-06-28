@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <sys/time.h>
+#include "device_launch_parameters.h"
+#include <curand_kernel.h>
 
 #define BOX_SIZE	23000 /* size of the data box on one dimension            */
 
@@ -104,8 +106,21 @@ PDH_baseline(bucket *histogram, atom *atom, double weight) {
 		double distance = p2p_distance(atom, i, j);
 		int position = (int) (distance / weight);
 		histogram[position].d_cnt++;
+		// Using Barrier Synchronization
 		__syncthreads();
 	}
+}
+
+__global__ void
+generate_data(atom *a, long long a_num){
+	int i = threadIdx.x + (blockIdx.x * blockDim.x);
+	curandState state;
+	curand_init(((unsigned long long)clock() + i) * BOX_SIZE, RAND_MAX, 1, &state);
+	a[i].x_pos = curand_uniform_double(&state) * BOX_SIZE;
+	a[i].y_pos = curand_uniform_double(&state) * BOX_SIZE;
+	a[i].z_pos = curand_uniform_double(&state) * BOX_SIZE;
+	// Using Barrier Synchronization
+	__syncthreads();
 }
 
 long long output_histogram(){
@@ -132,7 +147,7 @@ int main(int argc, char const *argv[])
 		PDH_res = atof(argv[2]);	// Input Distance: W
 		threads = atoi(argv[3]);    // Number of threads
 	} else {
-		printf("Invalid amount of arguments!!\n Needs a number of atoms, the distance amount and number of threads.")
+		printf("Invalid amount of arguments!!\n Needs a number of atoms, the distance amount and number of threads.");
 		return 0;
 	}
 	num_buckets = (int)(BOX_SIZE * 1.732 / PDH_res) + 1;
@@ -142,16 +157,18 @@ int main(int argc, char const *argv[])
 	atom_list = (atom *)malloc(atomSize);
 	bucket *d_histogram = NULL;
 	atom *d_atom_list = NULL;
+	atom *d_atom_list2 = NULL;
 	double difference_time1, difference_time2; 
 	long long  difference_t1, difference_t2;
 
 	srand(1);
 	/* generate data following a uniform distribution */
-	for(int i = 0;  i < PDH_acnt; i++) {
-		atom_list[i].x_pos = ((double)(rand()) / RAND_MAX) * BOX_SIZE;
-		atom_list[i].y_pos = ((double)(rand()) / RAND_MAX) * BOX_SIZE;
-		atom_list[i].z_pos = ((double)(rand()) / RAND_MAX) * BOX_SIZE;
-	}
+	cudaMalloc((void**) &d_atom_list2, atomSize);
+	cudaMemcpy(d_atom_list2, atom_list, atomSize, cudaMemcpyHostToDevice);
+	generate_data <<<ceil(PDH_acnt/threads), threads>>> (d_atom_list2, PDH_acnt);
+	cudaMemcpy(atom_list, d_atom_list2, atomSize, cudaMemcpyDeviceToHost);
+	cudaFree(d_atom_list2);
+
 	/* start counting time */
 	gettimeofday(&startTime, &Idunno);
 	
