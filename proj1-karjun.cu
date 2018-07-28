@@ -101,11 +101,12 @@ PDH_baseline(bucket *histogram, atom *atom, double weight, int size) {
 	// Add the thread Index with the block index and the dim x
 	i = blockIdx.x * blockDim.x + threadIdx.x;
 	j = i + 1;
-	
 	// Get the distance and then atomic add the position of the histogram with 1
 	for (int a = j; a < size; a++) {
 		distance = p2p_distance(atom, i, a);
+		printf("Distance: %lf\n", distance);
 		position = (int) (distance / weight);
+		printf("position: %d\n", position);
 		atomicAdd( &histogram[position].d_cnt, 1);
 	}
 }

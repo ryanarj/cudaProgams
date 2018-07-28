@@ -101,6 +101,8 @@ PDH_baseline(bucket *histogram, atom *atom, double weight) {
 	int i = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int j = (blockIdx.y * blockDim.y) + threadIdx.y;
 
+	printf("i: %d\n",i);
+    printf("j: %d\n",j);
 	// Get the distance and then the position of the histogram with 1
 	if (i < j) {
 		double distance = p2p_distance(atom, i, j);
@@ -114,11 +116,14 @@ PDH_baseline(bucket *histogram, atom *atom, double weight) {
 __global__ void
 generate_data(atom *a, long long a_num){
 	int i = threadIdx.x + (blockIdx.x * blockDim.x);
+
+	// Create random numbers, using clock so no two values can ever be the same
 	curandState state;
 	curand_init(((unsigned long long)clock() + i) * BOX_SIZE, RAND_MAX, 1, &state);
 	a[i].x_pos = curand_uniform_double(&state) * BOX_SIZE;
 	a[i].y_pos = curand_uniform_double(&state) * BOX_SIZE;
 	a[i].z_pos = curand_uniform_double(&state) * BOX_SIZE;
+	
 	// Using Barrier Synchronization
 	__syncthreads();
 }
